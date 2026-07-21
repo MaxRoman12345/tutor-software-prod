@@ -90,7 +90,7 @@ export function StudentPaperList({ papers }: { papers: StudentPaper[] }) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium text-neutral-900 truncate">
+                  <span className="text-sm font-medium text-neutral-900 truncate min-w-0">
                     {p.examBoard} {formatModule(p.module)} · {p.paperYear}
                   </span>
                   <span className="text-[11px] text-neutral-400 shrink-0">

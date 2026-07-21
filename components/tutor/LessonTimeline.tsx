@@ -203,7 +203,7 @@ export function LessonTimeline({
                 className={`px-4 py-2.5 ${busy ? 'opacity-60' : ''} ${l.id === editingId ? 'bg-neutral-50' : ''
                   }`}
               >
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 flex-wrap gap-y-1.5">
                   <span className="text-xs font-medium text-neutral-900 shrink-0">
                     {l.dateLabel}
                   </span>
@@ -215,7 +215,7 @@ export function LessonTimeline({
                       · {hrs(l.durationMinutes)}
                     </span>
                   )}
-                  <div className="flex-1" />
+                  <div className="flex-1 min-w-0" />
                   {onEdit && (
                     <button
                       onClick={() => onEdit(l)}

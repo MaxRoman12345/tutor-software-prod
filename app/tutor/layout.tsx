@@ -16,14 +16,14 @@ export default function TutorLayout({ children }: { children: React.ReactNode })
     <div className="min-h-svh bg-white text-neutral-900">
       <header className="border-b border-neutral-200/80 sticky top-0 bg-white/80 backdrop-blur z-10">
         <div className="mx-auto max-w-5xl px-4 sm:px-5 h-14 flex items-center justify-between gap-3">
-          <span className="font-semibold tracking-tight">Systemised Maths</span>
-          <div className="flex items-center gap-4 shrink-0">
-            <nav className="flex items-center gap-1 text-sm">
+          <span className="font-semibold tracking-tight shrink-0">Systemised Maths</span>
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <nav className="flex items-center gap-1 text-sm overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-3 py-1.5 rounded-full transition ${pathname.startsWith(item.href)
+                  className={`px-3 py-1.5 rounded-full transition shrink-0 ${pathname.startsWith(item.href)
                     ? 'bg-neutral-900 text-white'
                     : 'text-neutral-500 hover:text-neutral-900'
                     }`}
@@ -32,7 +32,9 @@ export default function TutorLayout({ children }: { children: React.ReactNode })
                 </Link>
               ))}
             </nav>
-            <LogoutButton />
+            <div className="shrink-0">
+              <LogoutButton />
+            </div>
           </div>
         </div>
       </header>

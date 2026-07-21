@@ -1,22 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-
-import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/client'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 
-export function ForgotPasswordForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
+import { createClient } from '@/lib/client'
+import { AuthCard } from '@/components/auth-card'
+
+export function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -42,58 +32,62 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
     }
   }
 
+  if (success) {
+    return (
+      <AuthCard title="Check Your Email" description="Password reset instructions sent">
+        <p className="text-sm text-neutral-500">
+          If you registered using your email and password, you will receive a password reset
+          email.
+        </p>
+      </AuthCard>
+    )
+  }
+
   return (
-    <div className={cn('flex flex-col gap-6', className)} {...props}>
-      {success ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
-            <CardDescription>Password reset instructions sent</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive a password reset
-              email.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
-            <CardDescription>
-              Type in your email and we&apos;ll send you a link to reset your password
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleForgotPassword}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Sending...' : 'Send reset email'}
-                </Button>
-              </div>
-              <div className="mt-4 text-center text-sm">
-                Already have an account?{' '}
-                <Link href="/auth/login" className="underline underline-offset-4">
-                  Login
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <AuthCard
+      title="Reset Your Password"
+      description="Type in your email and we'll send you a link to reset your password"
+    >
+      <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="email" className="text-xs font-medium text-neutral-500">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            placeholder="m@example.com"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-300 transition focus:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          />
+        </div>
+
+        {error && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="mt-1 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {isLoading ? 'Sending...' : 'Send reset email'}
+        </button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-neutral-400">
+        Already have an account?{' '}
+        <Link
+          href="/auth/login"
+          className="font-medium text-neutral-900 underline-offset-4 hover:underline"
+        >
+          Login
+        </Link>
+      </p>
+    </AuthCard>
   )
 }

@@ -119,7 +119,7 @@ export function TopicList({ topics }: { topics: TopicStats[] }) {
                       <span className="text-red-500 w-4 text-right">{incorrect}</span>
                     </span>
 
-                    <div className="w-20 h-1.5 rounded-full bg-neutral-100 overflow-hidden shrink-0">
+                    <div className="hidden sm:block w-20 h-1.5 rounded-full bg-neutral-100 overflow-hidden shrink-0">
                       <div className="flex h-full">
                         {correct > 0 && (
                           <div

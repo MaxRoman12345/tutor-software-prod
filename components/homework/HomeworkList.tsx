@@ -213,19 +213,19 @@ export function HomeworkList({
               onClick={() => toggleExpand(h)}
               className={`px-4 py-3 cursor-pointer hover:bg-neutral-50/80 transition ${pending ? 'opacity-60' : ''}`}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 flex-wrap gap-y-1.5">
                 <span
                   className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[h.status]}`}
                 >
                   {STATUS_LABEL[h.status]}
                 </span>
-                <span className="text-sm font-medium text-neutral-900 truncate">
+                <span className="text-sm font-medium text-neutral-900 truncate min-w-0 max-w-full">
                   {h.title}
                 </span>
                 <span className="text-[11px] font-mono text-neutral-300 shrink-0">
                   set {h.assignedLabel}
                 </span>
-                <div className="flex-1" />
+                <div className="flex-1 min-w-0" />
                 {due && (
                   <span
                     className={`text-[11px] font-mono shrink-0 ${h.overdue ? 'text-red-500' : 'text-neutral-400'

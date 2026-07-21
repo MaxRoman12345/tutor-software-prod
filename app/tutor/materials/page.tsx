@@ -153,7 +153,7 @@ export default function TutorMaterialsPage() {
           </h1>
 
           {(qpUrl || msUrl) && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               {qpUrl && (
                 <>
                   <button
