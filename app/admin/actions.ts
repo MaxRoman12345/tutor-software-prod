@@ -72,7 +72,7 @@ export async function getAdminData(): Promise<AdminData> {
 export async function assignStudentToTutor(studentId: string, tutorId: string) {
   const supabase = await createClient();
 
-  // one tutor per student — clear any existing link first
+  // one tutor per student - clear any existing link first
   const { error: deleteError } = await supabase
     .from("student_tutors")
     .delete()

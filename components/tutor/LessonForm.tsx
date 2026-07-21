@@ -24,7 +24,7 @@ function isoDays(n: number) {
 
 type DraftTopic = { topicId: string; minutes: string }
 
-/** Serves both "log a lesson" and "edit this lesson" — pass `existing` to edit. */
+/** Serves both "log a lesson" and "edit this lesson" - pass `existing` to edit. */
 export function LessonForm({
   studentId,
   topicOptions,

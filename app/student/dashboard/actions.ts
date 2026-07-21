@@ -90,7 +90,7 @@ function sortQuestions(nums: string[]) {
  * - Called with no args (student view): returns data for the logged-in user.
  * - Called with targetUserId (tutor view): returns data for that student.
  *   Relies on RLS to enforce that the caller (tutor) is actually allowed to
- *   read that student's rows — no extra authorization check is done here.
+ *   read that student's rows - no extra authorization check is done here.
  */
 export async function getDashboardData(
   targetUserId?: string,
@@ -124,7 +124,9 @@ export async function getDashboardData(
       supabase.from("topics").select("id, topic, section_course"),
       supabase
         .from("past_paper")
-        .select("id, exam_board, spec_level, module, paper_year, qp_path, ms_path"),
+        .select(
+          "id, exam_board, spec_level, module, paper_year, qp_path, ms_path",
+        ),
       supabase
         .from("questions")
         .select("id, topic_id, difficulty, pp_id, question_number"),

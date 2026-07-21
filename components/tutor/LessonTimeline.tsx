@@ -56,7 +56,7 @@ export function LessonTimeline({
   busy,
 }: {
   lessons: Lesson[]
-  /** Omit on the student view — read-only. */
+  /** Omit on the student view - read-only. */
   onEdit?: (lesson: Lesson) => void
   onDelete?: (id: string) => void
   editingId?: string | null
@@ -130,7 +130,7 @@ export function LessonTimeline({
                   <div
                     key={m}
                     className="flex-1 flex flex-col justify-end h-full"
-                    title={`${monthLabel(m)} — ${hrs(mins)}`}
+                    title={`${monthLabel(m)} - ${hrs(mins)}`}
                   >
                     <div
                       className={`rounded-sm ${mins > 0 ? 'bg-neutral-900' : 'bg-neutral-100'}`}
@@ -243,7 +243,7 @@ export function LessonTimeline({
                           key={t.topicId}
                           className={i % 2 === 0 ? 'bg-neutral-900' : 'bg-neutral-400'}
                           style={{ width: `${(t.minutes! / tracked) * 100}%` }}
-                          title={`${t.topic} — ${hrs(t.minutes!)}`}
+                          title={`${t.topic} - ${hrs(t.minutes!)}`}
                         />
                       ))}
                   </div>

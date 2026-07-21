@@ -4,7 +4,7 @@ import { pdfUrl } from './types'
 
 /**
  * Renders a past-paper label as plain text, with small "QP | MS" buttons
- * alongside — only those buttons open a paper (in a new tab); the label
+ * alongside - only those buttons open a paper (in a new tab); the label
  * itself is not clickable. Buttons are omitted if the paper has no PDFs
  * attached.
  */

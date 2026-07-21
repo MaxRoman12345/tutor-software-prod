@@ -45,7 +45,7 @@ export type StudentSection = {
 
 /**
  * Formatted server-side with an explicit timezone so the string is identical
- * on server and client — avoids hydration mismatch in a client component.
+ * on server and client - avoids hydration mismatch in a client component.
  */
 function dateLabel(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -60,7 +60,7 @@ function dateLabel(iso: string) {
  * One student's paper activity for the tutor view.
  *
  * - `sections`: EVERY board/spec/module in the student's programme, whether or
- *   not they've touched it — including ones with no questions tagged yet.
+ *   not they've touched it - including ones with no questions tagged yet.
  * - `papers`: only papers they've actually marked something in, newest first.
  *
  * Relies on the tutor's RLS select policy on student_question_progress.

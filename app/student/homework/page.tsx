@@ -15,7 +15,7 @@ export default async function StudentHomeworkPage() {
         Homework
       </h1>
       <p className="text-xs text-neutral-400 mb-6">
-        Mark the questions in Materials as you go — your homework updates itself.
+        Mark the questions in Materials as you go - your homework updates itself.
       </p>
 
       <HomeworkList homework={homework} studentId={studentId ?? ''} />

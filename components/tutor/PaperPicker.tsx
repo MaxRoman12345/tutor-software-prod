@@ -54,7 +54,7 @@ export function PaperPicker({
   options: PaperOption[]
   selected: string[]
   onChange: (ids: string[]) => void
-  /** Papers this student has worked on recently — offered as quick picks. */
+  /** Papers this student has worked on recently - offered as quick picks. */
   suggestedIds?: string[]
 }) {
   const [board, setBoard] = useState<string | null>(null)

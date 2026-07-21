@@ -120,7 +120,7 @@ export default function TutorMaterialsPage() {
   const openYear = async (paper: Paper) => {
     setOpenPaper(paper)
     setQLoading(true)
-    // no studentId — this is a browse view, outcomes/notes come back null
+    // no studentId - this is a browse view, outcomes/notes come back null
     setQuestions(await getQuestionsForPaper(paper.id))
     setQLoading(false)
   }

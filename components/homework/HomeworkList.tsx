@@ -43,7 +43,7 @@ function Difficulty({ level }: { level: number | null }) {
   )
 }
 
-/** Read-only row for the tutor's view — marking belongs to the student only. */
+/** Read-only row for the tutor's view - marking belongs to the student only. */
 function ReadOnlyQuestionRow({ question: q }: { question: QuestionRow }) {
   return (
     <div className="flex items-center gap-4 px-4 sm:px-5 py-3 sm:py-3.5 border-t border-neutral-100">

@@ -33,7 +33,7 @@ export default async function TutorStudentDetailPage({
   const overallPct = pct(dashboard.totalAttempted, dashboard.totalQuestions)
   const name = dashboard.name ?? dashboard.email?.split('@')[0] ?? 'Student'
 
-  // papers arrive newest-activity-first — offer the top few as quick picks
+  // papers arrive newest-activity-first - offer the top few as quick picks
   const suggestedPaperIds = papers.slice(0, 5).map((p) => p.id)
 
   return (
@@ -66,7 +66,7 @@ export default async function TutorStudentDetailPage({
 
       {!dashboard.exam_board && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mb-5">
-          No exam board set — showing all {dashboard.totalQuestions} questions rather
+          No exam board set - showing all {dashboard.totalQuestions} questions rather
           than their programme. Set it in the admin view.
         </div>
       )}

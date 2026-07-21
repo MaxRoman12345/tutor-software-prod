@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Only hit the DB when the answer actually changes what we do — public pages
+  // Only hit the DB when the answer actually changes what we do - public pages
   // still get their session cookie refreshed by updateSession above.
   if (!isProtected && !isAuthEntry && !isRoot) return response;
 
@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(home ?? "/auth/login", request.url));
   }
 
-  // Signed in but no recognised role — let the request through rather than
+  // Signed in but no recognised role - let the request through rather than
   // bounce them between two redirects forever.
   if (!home) return response;
 

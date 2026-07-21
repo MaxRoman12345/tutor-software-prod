@@ -46,7 +46,7 @@ export async function getPapers(): Promise<Paper[]> {
 
 /**
  * studentId: optional. Omit for the logged-in student's own progress.
- * Pass a specific student's id (tutor view) to see their progress instead —
+ * Pass a specific student's id (tutor view) to see their progress instead -
  * relies on RLS to enforce the caller is allowed to read that student's rows.
  */
 export async function getAllProgress(

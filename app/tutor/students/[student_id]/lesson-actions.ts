@@ -343,7 +343,7 @@ export type UpdateLessonInput = CreateLessonInput & { lessonId: string };
 
 /**
  * Edit a logged lesson. Topics and papers are replaced wholesale (delete then
- * insert) rather than diffed — simpler, and the row counts are tiny.
+ * insert) rather than diffed - simpler, and the row counts are tiny.
  *
  * Homework is upserted: passing one creates or updates it, passing null
  * removes any attached to this lesson.
