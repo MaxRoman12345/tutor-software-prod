@@ -5,11 +5,13 @@ import {
   getPapers,
   getQuestionsForPaper,
   getAllProgress,
+  getMyExamBoard,
   type Outcome,
   type Paper,
   type PaperProgress,
   type QuestionRow,
 } from './actions'
+import { programmeFilter } from '@/lib/programme'
 import {
   type Progress,
   EMPTY,
@@ -99,16 +101,34 @@ export default function MaterialsPage() {
   const [openPaper, setOpenPaper] = useState<Paper | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [qLoading, setQLoading] = useState(false)
+  const [examBoard, setExamBoard] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getPapers(), getAllProgress()]).then(([p, pr]) => {
-      setPapers(p)
-      setProgress(pr)
-      setLoading(false)
-    })
+    Promise.all([getPapers(), getAllProgress(), getMyExamBoard()]).then(
+      ([p, pr, eb]) => {
+        setPapers(p)
+        setProgress(pr)
+        setExamBoard(eb)
+        setLoading(false)
+      }
+    )
   }, [])
 
   const boards = useMemo(() => uniq(papers.map((p) => p.exam_board)), [papers])
+
+  // Reuses programmeFilter so this highlights by exactly the same rule the
+  // dashboard and tutor views use to decide a student's programme.
+  const inProgramme = useMemo(() => {
+    const filter = programmeFilter(examBoard)
+    return (b: string) => filter(b, '')
+  }, [examBoard])
+
+  // Only dampen once we know their board — with none set every board matches,
+  // and dimming nothing is the right outcome.
+  const myBoard = useMemo(
+    () => (examBoard ? boards.find(inProgramme) ?? null : null),
+    [examBoard, boards, inProgramme]
+  )
   const specs = useMemo(
     () => uniq(papers.filter((p) => p.exam_board === board).map((p) => p.spec_level)),
     [papers, board]
@@ -288,6 +308,7 @@ export default function MaterialsPage() {
       <div className="space-y-5">
         <FilterRow
           label="Exam board"
+          hint={myBoard ? `${myBoard} is your programme` : undefined}
           options={boards}
           selected={board}
           onSelect={(v) => {
@@ -296,6 +317,7 @@ export default function MaterialsPage() {
             setModule(null)
           }}
           progressFor={progressForBoard}
+          inProgramme={myBoard ? inProgramme : undefined}
         />
         {board && (
           <FilterRow

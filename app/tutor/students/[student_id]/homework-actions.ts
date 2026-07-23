@@ -94,20 +94,16 @@ export async function getHomework(studentId: string): Promise<HomeworkItem[]> {
 
   // Progress is derived, not stored: every question in an attached paper counts
   // toward the homework, using whatever the student marked in Materials.
-  const [questionsRes, progressRes] = await Promise.all([
+  const questionsRes =
     allPaperIds.length > 0
-      ? supabase.from("questions").select("id, pp_id").in("pp_id", allPaperIds)
-      : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("student_question_progress")
-      .select("question_id, outcome")
-      .eq("student_id", studentId),
-  ]);
+      ? await supabase
+          .from("questions")
+          .select("id, pp_id")
+          .in("pp_id", allPaperIds)
+      : { data: [], error: null };
 
   if (questionsRes.error)
     console.error("getHomework questions:", questionsRes.error);
-  if (progressRes.error)
-    console.error("getHomework progress:", progressRes.error);
 
   const questionsByPaper = new Map<string, string[]>();
   for (const q of questionsRes.data ?? []) {
@@ -115,6 +111,20 @@ export async function getHomework(studentId: string): Promise<HomeworkItem[]> {
     if (!questionsByPaper.has(q.pp_id)) questionsByPaper.set(q.pp_id, []);
     questionsByPaper.get(q.pp_id)!.push(q.id);
   }
+
+  // Only the questions these homeworks actually cover — reading the student's
+  // whole progress table here used to hit PostgREST's 1000-row cap and report
+  // completed questions as unmarked.
+  const questionIds = (questionsRes.data ?? []).map((q) => q.id);
+
+  const progressRes = await supabase
+    .from("student_question_progress")
+    .select("question_id, outcome")
+    .eq("student_id", studentId)
+    .in("question_id", questionIds);
+
+  if (progressRes.error)
+    console.error("getHomework progress:", progressRes.error);
 
   const outcomeFor = new Map(
     (progressRes.data ?? []).map((p) => [p.question_id, p.outcome as string]),

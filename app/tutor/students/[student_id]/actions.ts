@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/server";
 import { programmeFilter } from "@/lib/programme";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 export type Outcome = "correct" | "partial" | "incorrect";
 
@@ -71,28 +72,39 @@ export async function getStudentPapers(studentId: string): Promise<{
 }> {
   const supabase = await createClient();
 
-  const [profileRes, papersRes, questionsRes, progressRes] = await Promise.all([
+  // questions and progress are whole-table reads, so they have to be paged —
+  // see lib/fetch-all.ts.
+  const [profileRes, papersRes, questionRows, progressRows] = await Promise.all([
     supabase.from("users").select("exam_board").eq("id", studentId).single(),
     supabase
       .from("past_paper")
       .select(
         "id, paper_year, exam_board, module, spec_level, qp_path, ms_path",
       ),
-    supabase
-      .from("questions")
-      .select("id, pp_id, question_number, difficulty, topics(topic)"),
-    supabase
-      .from("student_question_progress")
-      .select("question_id, outcome, note, updated_at")
-      .eq("student_id", studentId),
+    fetchAllRows("getStudentPapers questions", (from, to) =>
+      supabase
+        .from("questions")
+        .select("id, pp_id, question_number, difficulty, topics(topic)")
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAllRows<{
+      question_id: string;
+      outcome: string | null;
+      note: string | null;
+      updated_at: string;
+    }>("getStudentPapers progress", (from, to) =>
+      supabase
+        .from("student_question_progress")
+        .select("question_id, outcome, note, updated_at")
+        .eq("student_id", studentId)
+        .order("question_id")
+        .range(from, to),
+    ),
   ]);
 
   if (papersRes.error)
     console.error("getStudentPapers papers:", papersRes.error);
-  if (questionsRes.error)
-    console.error("getStudentPapers questions:", questionsRes.error);
-  if (progressRes.error)
-    console.error("getStudentPapers progress:", progressRes.error);
 
   const inProgramme = programmeFilter(profileRes.data?.exam_board ?? null);
 
@@ -104,10 +116,10 @@ export async function getStudentPapers(studentId: string): Promise<{
     topics: { topic: string | null } | null;
   };
 
-  const questions = (questionsRes.data ?? []) as unknown as QRow[];
+  const questions = questionRows as unknown as QRow[];
 
   const progressFor = new Map(
-    (progressRes.data ?? []).map((p) => [
+    progressRows.map((p) => [
       p.question_id,
       {
         outcome: p.outcome as Outcome | null,

@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/server";
+import { programmeFilter } from "@/lib/programme";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 export type CompletedQuestion = {
   number: string;
@@ -43,22 +45,6 @@ export type DashboardData = {
   totalQuestions: number;
   totalAttempted: number;
 };
-
-function programmeFilter(examBoard: string | null) {
-  if (examBoard === "AQA") {
-    return (board: string, spec: string) =>
-      board === "AQA" || (board === "EDEXCEL" && spec === "NEW_SPEC");
-  }
-  if (examBoard === "EDEXCEL") {
-    return (board: string, spec: string) =>
-      board === "EDEXCEL" || (board === "AQA" && spec === "NEW_SPEC");
-  }
-  if (examBoard === "OCR") {
-    return (board: string, spec: string) =>
-      board === "OCR" || (board === "AQA" && spec === "NEW_SPEC");
-  }
-  return () => true;
-}
 
 function paperLabel(p: {
   exam_board: string | null;
@@ -114,7 +100,9 @@ export async function getDashboardData(
     };
   }
 
-  const [profileRes, topicsRes, papersRes, questionsRes, progressRes] =
+  // questions and progress are whole-table reads, so they have to be paged —
+  // see lib/fetch-all.ts.
+  const [profileRes, topicsRes, papersRes, questions, progress] =
     await Promise.all([
       supabase
         .from("users")
@@ -127,13 +115,29 @@ export async function getDashboardData(
         .select(
           "id, exam_board, spec_level, module, paper_year, qp_path, ms_path",
         ),
-      supabase
-        .from("questions")
-        .select("id, topic_id, difficulty, pp_id, question_number"),
-      supabase
-        .from("student_question_progress")
-        .select("question_id, outcome")
-        .eq("student_id", userId),
+      fetchAllRows<{
+        id: string;
+        topic_id: string | null;
+        difficulty: number | null;
+        pp_id: string | null;
+        question_number: string | null;
+      }>("getDashboardData questions", (from, to) =>
+        supabase
+          .from("questions")
+          .select("id, topic_id, difficulty, pp_id, question_number")
+          .order("id")
+          .range(from, to),
+      ),
+      fetchAllRows<{ question_id: string; outcome: string | null }>(
+        "getDashboardData progress",
+        (from, to) =>
+          supabase
+            .from("student_question_progress")
+            .select("question_id, outcome")
+            .eq("student_id", userId)
+            .order("question_id")
+            .range(from, to),
+      ),
     ]);
 
   const profile = profileRes.data;
@@ -148,12 +152,12 @@ export async function getDashboardData(
       .map((p) => p.id),
   );
 
-  const validQuestions = (questionsRes.data ?? []).filter(
+  const validQuestions = questions.filter(
     (q) => q.pp_id && validPaperIds.has(q.pp_id),
   );
 
   const outcomeFor = new Map(
-    (progressRes.data ?? []).map((p) => [
+    progress.map((p) => [
       p.question_id,
       p.outcome as "correct" | "partial" | "incorrect",
     ]),

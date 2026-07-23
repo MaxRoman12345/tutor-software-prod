@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/server";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 export type Paper = {
   id: string;
@@ -29,6 +30,27 @@ export type PaperProgress = {
   partial: number;
   incorrect: number;
 };
+
+/** The signed-in student's exam board, used to highlight their own programme. */
+export async function getMyExamBoard(): Promise<string | null> {
+  const supabase = await createClient();
+
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("exam_board")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.error("getMyExamBoard error:", error);
+    return null;
+  }
+  return data?.exam_board ?? null;
+}
 
 export async function getPapers(): Promise<Paper[]> {
   const supabase = await createClient();
@@ -61,28 +83,32 @@ export async function getAllProgress(
   }
   if (!targetId) return {};
 
-  const [questionsRes, progressRes] = await Promise.all([
-    supabase.from("questions").select("id, pp_id"),
-    supabase
-      .from("student_question_progress")
-      .select("question_id, outcome")
-      .eq("student_id", targetId),
+  // Both are whole-table reads, so they have to be paged — see lib/fetch-all.ts.
+  const [questions, progress] = await Promise.all([
+    fetchAllRows<{ id: string; pp_id: string | null }>(
+      "getAllProgress questions",
+      (from, to) =>
+        supabase.from("questions").select("id, pp_id").order("id").range(from, to),
+    ),
+    fetchAllRows<{ question_id: string; outcome: string | null }>(
+      "getAllProgress progress",
+      (from, to) =>
+        supabase
+          .from("student_question_progress")
+          .select("question_id, outcome")
+          .eq("student_id", targetId)
+          .order("question_id")
+          .range(from, to),
+    ),
   ]);
 
-  if (questionsRes.error) {
-    console.error("getAllProgress questions error:", questionsRes.error);
-    return {};
-  }
-  if (progressRes.error)
-    console.error("getAllProgress progress error:", progressRes.error);
-
   const outcomeFor = new Map(
-    (progressRes.data ?? []).map((p) => [p.question_id, p.outcome as Outcome]),
+    progress.map((p) => [p.question_id, p.outcome as Outcome]),
   );
 
   const byPaper: Record<string, PaperProgress> = {};
 
-  for (const q of questionsRes.data ?? []) {
+  for (const q of questions) {
     if (!q.pp_id) continue;
     byPaper[q.pp_id] ??= { total: 0, correct: 0, partial: 0, incorrect: 0 };
     byPaper[q.pp_id].total++;
@@ -111,21 +137,26 @@ export async function getQuestionsForPaper(
     targetId = claims?.claims?.sub;
   }
 
-  const [questionsRes, progressRes] = await Promise.all([
-    supabase
-      .from("questions")
-      .select("id, question_number, difficulty, topics(topic, section_course)")
-      .eq("pp_id", paperId),
-    supabase
-      .from("student_question_progress")
-      .select("question_id, outcome, note")
-      .eq("student_id", targetId),
-  ]);
+  const questionsRes = await supabase
+    .from("questions")
+    .select("id, question_number, difficulty, topics(topic, section_course)")
+    .eq("pp_id", paperId);
 
   if (questionsRes.error) {
     console.error("getQuestionsForPaper error:", questionsRes.error);
     return [];
   }
+
+  // Only this paper's questions — reading the student's whole progress table
+  // here used to hit PostgREST's 1000-row cap and silently drop marks.
+  const questionIds = (questionsRes.data ?? []).map((q) => q.id);
+
+  const progressRes = await supabase
+    .from("student_question_progress")
+    .select("question_id, outcome, note")
+    .eq("student_id", targetId)
+    .in("question_id", questionIds);
+
   if (progressRes.error) console.error("progress error:", progressRes.error);
 
   const progressFor = new Map(

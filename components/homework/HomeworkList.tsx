@@ -163,6 +163,26 @@ export function HomeworkList({
     }))
   }
 
+  /**
+   * Server counts are a snapshot from page load, so marking inside the
+   * expanded view wouldn't move the bar. Once every attached paper is loaded
+   * we hold the homework's full question set, so recount from that instead.
+   */
+  const liveProgress = (h: HomeworkItem) => {
+    const loaded = h.papers.map((p) => questionsByPaper[p.ppId])
+    if (h.papers.length === 0 || loaded.some((rows) => !rows)) return null
+
+    const rows = loaded.flat() as QuestionRow[]
+    const count = (o: Outcome) => rows.filter((q) => q.outcome === o).length
+
+    return {
+      total: rows.length,
+      correct: count('correct'),
+      partial: count('partial'),
+      incorrect: count('incorrect'),
+    }
+  }
+
   const complete = homework.filter((h) => h.status === 'complete').length
   const overdue = homework.filter((h) => h.overdue).length
   const totCorrect = homework.reduce((a, h) => a + h.correct, 0)
@@ -207,6 +227,21 @@ export function HomeworkList({
         {homework.map((h) => {
           const due = dueLabel(h)
           const open = expandedId === h.id
+          const live = liveProgress(h)
+          const bar = live ?? {
+            total: h.total,
+            correct: h.correct,
+            partial: h.partial,
+            incorrect: h.incorrect,
+          }
+          const marked = bar.correct + bar.partial + bar.incorrect
+          const status: HomeworkItem['status'] = live
+            ? bar.total > 0 && marked === bar.total
+              ? 'complete'
+              : marked > 0
+                ? 'in_progress'
+                : 'not_started'
+            : h.status
           return (
             <div
               key={h.id}
@@ -215,9 +250,9 @@ export function HomeworkList({
             >
               <div className="flex items-center gap-2.5 flex-wrap gap-y-1.5">
                 <span
-                  className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[h.status]}`}
+                  className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_STYLE[status]}`}
                 >
-                  {STATUS_LABEL[h.status]}
+                  {STATUS_LABEL[status]}
                 </span>
                 <span className="text-sm font-medium text-neutral-900 truncate min-w-0 max-w-full">
                   {h.title}
@@ -250,22 +285,14 @@ export function HomeworkList({
 
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex-1 max-w-sm">
-                  <SegmentBar
-                    progress={{
-                      total: h.total,
-                      correct: h.correct,
-                      partial: h.partial,
-                      incorrect: h.incorrect,
-                    }}
-                    thin
-                  />
+                  <SegmentBar progress={bar} thin />
                 </div>
                 <span className="text-[11px] font-mono text-neutral-400 shrink-0">
-                  {h.marked}/{h.total}
+                  {marked}/{bar.total}
                 </span>
-                {h.marked > 0 && (
+                {marked > 0 && (
                   <span className="text-[11px] font-mono text-neutral-300 shrink-0">
-                    {pct(h.correct, h.marked)}% correct
+                    {pct(bar.correct, marked)}% correct
                   </span>
                 )}
               </div>
