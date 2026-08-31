@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   getPapers,
+  getWorksheets,
   getQuestionsForPaper,
+  getQuestionsForWorksheet,
   getAllProgress,
   getMyExamBoard,
   type Outcome,
   type Paper,
+  type Worksheet,
   type PaperProgress,
   type QuestionRow,
 } from './actions'
-import { programmeFilter } from '@/lib/programme'
+import { programmeFilter, WORKSHEET_BOARD } from '@/lib/programme'
 import {
   type Progress,
   EMPTY,
@@ -27,13 +30,15 @@ import { CompletionBanner } from '@/components/students/materials/CompletionBann
 import { MarkingKey } from '@/components/students/materials/MarkingKey'
 import { QuestionTableHeader } from '@/components/students/materials/QuestionTableHeader'
 import { QuestionRowItem } from '@/components/students/materials/QuestionRowItem'
+import { WorksheetBrowser } from '@/components/students/materials/WorksheetBrowser'
+import { worksheetTitle } from '@/components/students/materials/WorksheetCard'
 
 const SPEC_LABEL: Record<string, string> = { NEW_SPEC: 'New spec', OLD_SPEC: 'Old spec' }
 
-function sumProgress(papers: Paper[], progress: Record<string, PaperProgress>): Progress {
-  return papers.reduce<Progress>(
-    (acc, p) => {
-      const pr = progress[p.id]
+function sumProgress(ids: string[], progress: Record<string, PaperProgress>): Progress {
+  return ids.reduce<Progress>(
+    (acc, id) => {
+      const pr = progress[id]
       if (!pr) return acc
       return {
         total: acc.total + pr.total,
@@ -91,44 +96,183 @@ async function downloadPdf(url: string, filename: string) {
   }
 }
 
+/**
+ * The open detail view for a single source — a paper or a worksheet. The
+ * marking flow is identical for both; only the heading, PDF filenames and the
+ * questions passed in differ.
+ */
+function SourceDetail({
+  title,
+  fileLabel,
+  qpPath,
+  msPath,
+  questions,
+  loading,
+  onBack,
+  onMark,
+  onNoteChange,
+}: {
+  title: string
+  fileLabel: string
+  qpPath: string | null
+  msPath: string | null
+  questions: QuestionRow[]
+  loading: boolean
+  onBack: () => void
+  onMark: (questionId: string, outcome: Outcome | null) => void
+  onNoteChange: (questionId: string, note: string | null) => void
+}) {
+  const qpUrl = pdfUrl(qpPath)
+  const msUrl = pdfUrl(msPath)
+
+  const progress: Progress = {
+    total: questions.length,
+    correct: questions.filter((q) => q.outcome === 'correct').length,
+    partial: questions.filter((q) => q.outcome === 'partial').length,
+    incorrect: questions.filter((q) => q.outcome === 'incorrect').length,
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="text-sm text-neutral-500 hover:text-neutral-900 transition mb-5"
+      >
+        ← Back
+      </button>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{title}</h1>
+
+        {(qpUrl || msUrl) && (
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {qpUrl && (
+              <>
+                <button
+                  onClick={() => window.open(qpUrl, '_blank')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
+                >
+                  <FileIcon />
+                  View QP
+                </button>
+                <button
+                  onClick={() => downloadPdf(qpUrl, `${fileLabel} QP.pdf`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
+                >
+                  <ArrowDownIcon />
+                  QP
+                </button>
+              </>
+            )}
+            {msUrl && (
+              <>
+                <button
+                  onClick={() => window.open(msUrl, '_blank')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
+                >
+                  <FileIcon />
+                  View MS
+                </button>
+                <button
+                  onClick={() => downloadPdf(msUrl, `${fileLabel} MS.pdf`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
+                >
+                  <ArrowDownIcon />
+                  MS
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-neutral-400 py-12 text-center">Loading questions…</p>
+      ) : questions.length === 0 ? (
+        <div className="rounded-2xl border border-neutral-200/80 p-10 text-center">
+          <p className="text-sm text-neutral-400">No questions logged here yet.</p>
+        </div>
+      ) : (
+        <>
+          {isComplete(progress) && <CompletionBanner progress={progress} />}
+          <PaperStats progress={progress} />
+          <MarkingKey />
+          <div className="rounded-2xl border border-neutral-200/80 overflow-hidden">
+            <QuestionTableHeader />
+            {questions.map((q) => (
+              <QuestionRowItem
+                key={q.id}
+                question={q}
+                onMark={onMark}
+                onNoteChange={onNoteChange}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function MaterialsPage() {
   const [papers, setPapers] = useState<Paper[]>([])
+  const [worksheets, setWorksheets] = useState<Worksheet[]>([])
   const [progress, setProgress] = useState<Record<string, PaperProgress>>({})
   const [loading, setLoading] = useState(true)
   const [board, setBoard] = useState<string | null>(null)
   const [spec, setSpec] = useState<string | null>(null)
   const [module, setModule] = useState<string | null>(null)
   const [openPaper, setOpenPaper] = useState<Paper | null>(null)
+  const [openWorksheet, setOpenWorksheet] = useState<Worksheet | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [qLoading, setQLoading] = useState(false)
   const [examBoard, setExamBoard] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getPapers(), getAllProgress(), getMyExamBoard()]).then(
-      ([p, pr, eb]) => {
-        setPapers(p)
-        setProgress(pr)
-        setExamBoard(eb)
-        setLoading(false)
-      }
-    )
+    Promise.all([
+      getPapers(),
+      getWorksheets(),
+      getAllProgress(),
+      getMyExamBoard(),
+    ]).then(([p, w, pr, eb]) => {
+      setPapers(p)
+      setWorksheets(w)
+      setProgress(pr)
+      setExamBoard(eb)
+      setLoading(false)
+    })
   }, [])
 
-  const boards = useMemo(() => uniq(papers.map((p) => p.exam_board)), [papers])
+  const worksheetsMode = board === WORKSHEET_BOARD
 
-  // Reuses programmeFilter so this highlights by exactly the same rule the
-  // dashboard and tutor views use to decide a student's programme.
+  // Real exam boards, plus a Worksheets pseudo-board when any exist.
+  const boards = useMemo(() => {
+    const real = uniq(papers.map((p) => p.exam_board))
+    return worksheets.length > 0 ? [...real, WORKSHEET_BOARD] : real
+  }, [papers, worksheets])
+
+  // Worksheets belong to everyone's programme, so they're highlighted the same
+  // way the student's own exam board is — reusing programmeFilter for the rest.
   const inProgramme = useMemo(() => {
     const filter = programmeFilter(examBoard)
-    return (b: string) => filter(b, '')
+    return (b: string) => b === WORKSHEET_BOARD || filter(b, '')
   }, [examBoard])
 
-  // Only dampen once we know their board — with none set every board matches,
-  // and dimming nothing is the right outcome.
   const myBoard = useMemo(
-    () => (examBoard ? boards.find(inProgramme) ?? null : null),
+    () =>
+      examBoard
+        ? boards.find((b) => b !== WORKSHEET_BOARD && inProgramme(b)) ?? null
+        : null,
     [examBoard, boards, inProgramme]
   )
+
+  // Dim non-programme boards once we know the student's own — worksheets stay
+  // lit for every student, board set or not.
+  const highlight = useMemo(
+    () => (myBoard || worksheets.length > 0 ? inProgramme : undefined),
+    [myBoard, worksheets, inProgramme]
+  )
+
   const specs = useMemo(
     () => uniq(papers.filter((p) => p.exam_board === board).map((p) => p.spec_level)),
     [papers, board]
@@ -151,17 +295,19 @@ export default function MaterialsPage() {
   )
 
   const progressForBoard = (b: string) =>
-    sumProgress(papers.filter((p) => p.exam_board === b), progress)
+    b === WORKSHEET_BOARD
+      ? sumProgress(worksheets.map((w) => w.id), progress)
+      : sumProgress(papers.filter((p) => p.exam_board === b).map((p) => p.id), progress)
   const progressForSpec = (s: string) =>
     sumProgress(
-      papers.filter((p) => p.exam_board === board && p.spec_level === s),
+      papers.filter((p) => p.exam_board === board && p.spec_level === s).map((p) => p.id),
       progress
     )
   const progressForModule = (m: string) =>
     sumProgress(
-      papers.filter(
-        (p) => p.exam_board === board && p.spec_level === spec && p.module === m
-      ),
+      papers
+        .filter((p) => p.exam_board === board && p.spec_level === spec && p.module === m)
+        .map((p) => p.id),
       progress
     )
 
@@ -172,17 +318,28 @@ export default function MaterialsPage() {
     setQLoading(false)
   }
 
+  const openWs = async (worksheet: Worksheet) => {
+    setOpenWorksheet(worksheet)
+    setQLoading(true)
+    setQuestions(await getQuestionsForWorksheet(worksheet.id))
+    setQLoading(false)
+  }
+
+  // The id of whichever source is currently open, so marking updates the right
+  // progress bucket regardless of whether it's a paper or a worksheet.
+  const openId = openPaper?.id ?? openWorksheet?.id ?? null
+
   const markQuestion = (questionId: string, outcome: Outcome | null) => {
     const previous = questions.find((q) => q.id === questionId)?.outcome ?? null
     setQuestions((qs) => qs.map((q) => (q.id === questionId ? { ...q, outcome } : q)))
-    if (!openPaper) return
+    if (!openId) return
     setProgress((prev) => {
-      const current = prev[openPaper.id]
+      const current = prev[openId]
       if (!current) return prev
       const next = { ...current }
       if (previous) next[previous]--
       if (outcome) next[outcome]++
-      return { ...prev, [openPaper.id]: next }
+      return { ...prev, [openId]: next }
     })
   }
 
@@ -192,118 +349,47 @@ export default function MaterialsPage() {
 
   if (loading) {
     return (
-      <p className="text-sm text-neutral-400 py-12 text-center">
-        Loading materials…
-      </p>
+      <p className="text-sm text-neutral-400 py-12 text-center">Loading materials…</p>
+    )
+  }
+
+  if (openWorksheet) {
+    const title = `${worksheetTitle(openWorksheet)} · ${formatModule(openWorksheet.module)}`
+    return (
+      <SourceDetail
+        title={title}
+        fileLabel={`${formatModule(openWorksheet.module)} ${worksheetTitle(openWorksheet)}`.trim()}
+        qpPath={openWorksheet.qp_path}
+        msPath={openWorksheet.ms_path}
+        questions={questions}
+        loading={qLoading}
+        onBack={() => setOpenWorksheet(null)}
+        onMark={markQuestion}
+        onNoteChange={noteChanged}
+      />
     )
   }
 
   if (openPaper) {
-    const paperProgress: Progress = {
-      total: questions.length,
-      correct: questions.filter((q) => q.outcome === 'correct').length,
-      partial: questions.filter((q) => q.outcome === 'partial').length,
-      incorrect: questions.filter((q) => q.outcome === 'incorrect').length,
-    }
-    const qpUrl = pdfUrl(openPaper.qp_path)
-    const msUrl = pdfUrl(openPaper.ms_path)
-    const paperLabel = `${openPaper.exam_board ?? ''} ${formatModule(openPaper.module)} ${openPaper.paper_year ?? ''}`.trim()
-
+    const label = `${openPaper.exam_board ?? ''} ${formatModule(openPaper.module)} ${openPaper.paper_year ?? ''}`.trim()
     return (
-      <div>
-        <button
-          onClick={() => setOpenPaper(null)}
-          className="text-sm text-neutral-500 hover:text-neutral-900 transition mb-5"
-        >
-          ← Back to papers
-        </button>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-            {openPaper.exam_board} {formatModule(openPaper.module)} · {openPaper.paper_year}
-          </h1>
-
-          {(qpUrl || msUrl) && (
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {qpUrl && (
-                <>
-                  <button
-                    onClick={() => window.open(qpUrl, '_blank')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
-                  >
-                    <FileIcon />
-                    View QP
-                  </button>
-                  <button
-                    onClick={() => downloadPdf(qpUrl, `${paperLabel} QP.pdf`)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
-                  >
-                    <ArrowDownIcon />
-                    QP
-                  </button>
-                </>
-              )}
-              {msUrl && (
-                <>
-                  <button
-                    onClick={() => window.open(msUrl, '_blank')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
-                  >
-                    <FileIcon />
-                    View MS
-                  </button>
-                  <button
-                    onClick={() => downloadPdf(msUrl, `${paperLabel} MS.pdf`)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 text-xs text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition"
-                  >
-                    <ArrowDownIcon />
-                    MS
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {qLoading ? (
-          <p className="text-sm text-neutral-400 py-12 text-center">
-            Loading questions…
-          </p>
-        ) : questions.length === 0 ? (
-          <div className="rounded-2xl border border-neutral-200/80 p-10 text-center">
-            <p className="text-sm text-neutral-400">
-              No questions logged for this paper yet.
-            </p>
-          </div>
-        ) : (
-          <>
-            {isComplete(paperProgress) && (
-              <CompletionBanner progress={paperProgress} />
-            )}
-            <PaperStats progress={paperProgress} />
-            <MarkingKey />
-            <div className="rounded-2xl border border-neutral-200/80 overflow-hidden">
-              <QuestionTableHeader />
-              {questions.map((q) => (
-                <QuestionRowItem
-                  key={q.id}
-                  question={q}
-                  onMark={markQuestion}
-                  onNoteChange={noteChanged}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      <SourceDetail
+        title={`${openPaper.exam_board} ${formatModule(openPaper.module)} · ${openPaper.paper_year}`}
+        fileLabel={label}
+        qpPath={openPaper.qp_path}
+        msPath={openPaper.ms_path}
+        questions={questions}
+        loading={qLoading}
+        onBack={() => setOpenPaper(null)}
+        onMark={markQuestion}
+        onNoteChange={noteChanged}
+      />
     )
   }
 
   return (
     <div>
-      <h1 className="text-xl sm:text-2xl font-semibold tracking-tight mb-6">
-        Materials
-      </h1>
+      <h1 className="text-xl sm:text-2xl font-semibold tracking-tight mb-6">Materials</h1>
 
       <div className="space-y-5">
         <FilterRow
@@ -317,9 +403,9 @@ export default function MaterialsPage() {
             setModule(null)
           }}
           progressFor={progressForBoard}
-          inProgramme={myBoard ? inProgramme : undefined}
+          inProgramme={highlight}
         />
-        {board && (
+        {board && !worksheetsMode && (
           <FilterRow
             label="Specification"
             options={specs}
@@ -332,7 +418,7 @@ export default function MaterialsPage() {
             progressFor={progressForSpec}
           />
         )}
-        {spec && (
+        {spec && !worksheetsMode && (
           <FilterRow
             label="Module"
             options={modules}
@@ -344,7 +430,15 @@ export default function MaterialsPage() {
         )}
       </div>
 
-      {module && (
+      {worksheetsMode && (
+        <WorksheetBrowser
+          worksheets={worksheets}
+          progressFor={(id) => progress[id] ?? EMPTY}
+          onOpen={openWs}
+        />
+      )}
+
+      {!worksheetsMode && module && (
         <div className="mt-8">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-sm font-medium">Papers</h2>

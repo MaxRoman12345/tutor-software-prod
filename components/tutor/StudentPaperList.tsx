@@ -60,7 +60,7 @@ export function StudentPaperList({ papers }: { papers: StudentPaper[] }) {
     return (
       <div className="rounded-2xl border border-neutral-200/80 p-10 text-center">
         <p className="text-sm text-neutral-400">
-          This student hasn&apos;t started any past papers yet.
+          This student hasn&apos;t started any papers or worksheets yet.
         </p>
       </div>
     )
@@ -91,10 +91,16 @@ export function StudentPaperList({ papers }: { papers: StudentPaper[] }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-medium text-neutral-900 truncate min-w-0">
-                    {p.examBoard} {formatModule(p.module)} · {p.paperYear}
+                    {p.isWorksheet
+                      ? `${formatModule(p.module)} · ${p.paperYear ?? 'Worksheet'}`
+                      : `${p.examBoard} ${formatModule(p.module)} · ${p.paperYear}`}
                   </span>
                   <span className="text-[11px] text-neutral-400 shrink-0">
-                    {p.specLevel === 'NEW_SPEC' ? 'New spec' : 'Old spec'}
+                    {p.isWorksheet
+                      ? 'Worksheet'
+                      : p.specLevel === 'NEW_SPEC'
+                        ? 'New spec'
+                        : 'Old spec'}
                   </span>
                 </div>
                 <div className="mt-1.5 max-w-xs">

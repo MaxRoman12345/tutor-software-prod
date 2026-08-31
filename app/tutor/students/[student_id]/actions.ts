@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/server";
-import { programmeFilter } from "@/lib/programme";
+import { programmeFilter, WORKSHEET_BOARD } from "@/lib/programme";
 import { fetchAllRows } from "@/lib/fetch-all";
 
 export type Outcome = "correct" | "partial" | "incorrect";
@@ -20,9 +20,12 @@ export type StudentPaper = {
   examBoard: string | null;
   specLevel: string | null;
   module: string | null;
+  /** For worksheets this holds the topic name rather than a year. */
   paperYear: string | null;
   qpPath: string | null;
   msPath: string | null;
+  /** True when this row is a worksheet rather than a past paper. */
+  isWorksheet: boolean;
   total: number;
   correct: number;
   partial: number;
@@ -74,17 +77,21 @@ export async function getStudentPapers(studentId: string): Promise<{
 
   // questions and progress are whole-table reads, so they have to be paged —
   // see lib/fetch-all.ts.
-  const [profileRes, papersRes, questionRows, progressRows] = await Promise.all([
+  const [profileRes, papersRes, worksheetsRes, questionRows, progressRows] =
+    await Promise.all([
     supabase.from("users").select("exam_board").eq("id", studentId).single(),
     supabase
       .from("past_paper")
       .select(
         "id, paper_year, exam_board, module, spec_level, qp_path, ms_path",
       ),
+    supabase
+      .from("worksheets")
+      .select("id, module, topic_name, qp_path, ms_path"),
     fetchAllRows("getStudentPapers questions", (from, to) =>
       supabase
         .from("questions")
-        .select("id, pp_id, question_number, difficulty, topics(topic)")
+        .select("id, pp_id, worksheet_id, question_number, difficulty, topics(topic)")
         .order("id")
         .range(from, to),
     ),
@@ -111,6 +118,7 @@ export async function getStudentPapers(studentId: string): Promise<{
   type QRow = {
     id: string;
     pp_id: string | null;
+    worksheet_id: string | null;
     question_number: string | null;
     difficulty: number | null;
     topics: { topic: string | null } | null;
@@ -129,11 +137,13 @@ export async function getStudentPapers(studentId: string): Promise<{
     ]),
   );
 
+  // keyed by source id — a paper id or a worksheet id
   const byPaper = new Map<string, QRow[]>();
   for (const q of questions) {
-    if (!q.pp_id) continue;
-    if (!byPaper.has(q.pp_id)) byPaper.set(q.pp_id, []);
-    byPaper.get(q.pp_id)!.push(q);
+    const sourceId = q.pp_id ?? q.worksheet_id;
+    if (!sourceId) continue;
+    if (!byPaper.has(sourceId)) byPaper.set(sourceId, []);
+    byPaper.get(sourceId)!.push(q);
   }
 
   const programmePapers = (papersRes.data ?? []).filter((p) =>
@@ -224,6 +234,104 @@ export async function getStudentPapers(studentId: string): Promise<{
       paperYear: p.paper_year,
       qpPath: p.qp_path,
       msPath: p.ms_path,
+      isWorksheet: false,
+      total: rows.length,
+      correct,
+      partial,
+      incorrect,
+      lastActivity,
+      lastActivityLabel: lastActivity ? dateLabel(lastActivity) : null,
+      questions: rows,
+    });
+  }
+
+  // Worksheets are uni-board, so every student's programme includes all of
+  // them. They surface under a single "Worksheets" board, one section per
+  // module (Pure / Statistics / Mechanics).
+  type WorksheetRow = {
+    id: string;
+    module: string | null;
+    topic_name: string | null;
+    qp_path: string | null;
+    ms_path: string | null;
+  };
+
+  for (const w of (worksheetsRes.data ?? []) as WorksheetRow[]) {
+    const sectionKey = `${WORKSHEET_BOARD}|-|${w.module ?? "?"}`;
+    if (!sectionMap.has(sectionKey)) {
+      sectionMap.set(sectionKey, {
+        key: sectionKey,
+        examBoard: WORKSHEET_BOARD,
+        specLevel: null,
+        module: w.module,
+        papers: 0,
+        papersStarted: 0,
+        total: 0,
+        correct: 0,
+        partial: 0,
+        incorrect: 0,
+      });
+    }
+    const section = sectionMap.get(sectionKey)!;
+    section.papers++;
+
+    const qs = byPaper.get(w.id) ?? [];
+
+    let correct = 0;
+    let partial = 0;
+    let incorrect = 0;
+    let lastActivity: string | null = null;
+
+    const rows: StudentPaperQuestion[] = qs.map((q) => {
+      const pr = progressFor.get(q.id);
+      const outcome = pr?.outcome ?? null;
+
+      if (outcome === "correct") correct++;
+      else if (outcome === "partial") partial++;
+      else if (outcome === "incorrect") incorrect++;
+
+      if (outcome && pr?.updated_at) {
+        if (!lastActivity || pr.updated_at > lastActivity) {
+          lastActivity = pr.updated_at;
+        }
+      }
+
+      return {
+        id: q.id,
+        questionNumber: q.question_number,
+        difficulty: q.difficulty,
+        topic: q.topics?.topic ?? null,
+        outcome,
+        note: pr?.note ?? null,
+      };
+    });
+
+    section.total += rows.length;
+    section.correct += correct;
+    section.partial += partial;
+    section.incorrect += incorrect;
+
+    const marked = correct + partial + incorrect;
+    if (marked === 0) continue;
+
+    section.papersStarted++;
+
+    rows.sort((a, b) =>
+      (a.questionNumber ?? "").localeCompare(b.questionNumber ?? "", undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
+
+    started.push({
+      id: w.id,
+      examBoard: WORKSHEET_BOARD,
+      specLevel: null,
+      module: w.module,
+      paperYear: w.topic_name,
+      qpPath: w.qp_path,
+      msPath: w.ms_path,
+      isWorksheet: true,
       total: rows.length,
       correct,
       partial,

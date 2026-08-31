@@ -3,13 +3,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   getPapers,
+  getWorksheets,
   getQuestionsForPaper,
+  getQuestionsForWorksheet,
   type Paper,
+  type Worksheet,
   type QuestionRow,
 } from '@/app/student/materials/actions'
+import { WORKSHEET_BOARD } from '@/lib/programme'
 import { formatModule, uniq, pdfUrl } from '@/components/students/materials/types'
 import { FilterRow } from '@/components/students/materials/FilterRow'
 import { PaperCard } from '@/components/students/materials/PaperCard'
+import { WorksheetBrowser } from '@/components/students/materials/WorksheetBrowser'
+import { worksheetTitle } from '@/components/students/materials/WorksheetCard'
 import { QuestionTableHeader } from '@/components/students/materials/QuestionTableHeader'
 
 const SPEC_LABEL: Record<string, string> = { NEW_SPEC: 'New spec', OLD_SPEC: 'Old spec' }
@@ -80,22 +86,30 @@ function Difficulty({ level }: { level: number | null }) {
 
 export default function TutorMaterialsPage() {
   const [papers, setPapers] = useState<Paper[]>([])
+  const [worksheets, setWorksheets] = useState<Worksheet[]>([])
   const [loading, setLoading] = useState(true)
   const [board, setBoard] = useState<string | null>(null)
   const [spec, setSpec] = useState<string | null>(null)
   const [module, setModule] = useState<string | null>(null)
   const [openPaper, setOpenPaper] = useState<Paper | null>(null)
+  const [openWorksheet, setOpenWorksheet] = useState<Worksheet | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [qLoading, setQLoading] = useState(false)
 
   useEffect(() => {
-    getPapers().then((p) => {
+    Promise.all([getPapers(), getWorksheets()]).then(([p, w]) => {
       setPapers(p)
+      setWorksheets(w)
       setLoading(false)
     })
   }, [])
 
-  const boards = useMemo(() => uniq(papers.map((p) => p.exam_board)), [papers])
+  const worksheetsMode = board === WORKSHEET_BOARD
+
+  const boards = useMemo(() => {
+    const real = uniq(papers.map((p) => p.exam_board))
+    return worksheets.length > 0 ? [...real, WORKSHEET_BOARD] : real
+  }, [papers, worksheets])
   const specs = useMemo(
     () => uniq(papers.filter((p) => p.exam_board === board).map((p) => p.spec_level)),
     [papers, board]
@@ -125,6 +139,13 @@ export default function TutorMaterialsPage() {
     setQLoading(false)
   }
 
+  const openWs = async (worksheet: Worksheet) => {
+    setOpenWorksheet(worksheet)
+    setQLoading(true)
+    setQuestions(await getQuestionsForWorksheet(worksheet.id))
+    setQLoading(false)
+  }
+
   if (loading) {
     return (
       <p className="text-sm text-neutral-400 py-12 text-center">
@@ -133,23 +154,35 @@ export default function TutorMaterialsPage() {
     )
   }
 
-  if (openPaper) {
-    const qpUrl = pdfUrl(openPaper.qp_path)
-    const msUrl = pdfUrl(openPaper.ms_path)
-    const paperLabel = `${openPaper.exam_board ?? ''} ${formatModule(openPaper.module)} ${openPaper.paper_year ?? ''}`.trim()
+  if (openPaper || openWorksheet) {
+    const isWs = !!openWorksheet
+    const qpPath = openWorksheet?.qp_path ?? openPaper?.qp_path ?? null
+    const msPath = openWorksheet?.ms_path ?? openPaper?.ms_path ?? null
+    const qpUrl = pdfUrl(qpPath)
+    const msUrl = pdfUrl(msPath)
+    const paperLabel = isWs
+      ? `${formatModule(openWorksheet!.module)} ${worksheetTitle(openWorksheet!)}`.trim()
+      : `${openPaper!.exam_board ?? ''} ${formatModule(openPaper!.module)} ${openPaper!.paper_year ?? ''}`.trim()
+    const heading = isWs
+      ? `${worksheetTitle(openWorksheet!)} · ${formatModule(openWorksheet!.module)}`
+      : `${openPaper!.exam_board} ${formatModule(openPaper!.module)} · ${openPaper!.paper_year}`
+    const closeDetail = () => {
+      setOpenPaper(null)
+      setOpenWorksheet(null)
+    }
 
     return (
       <div>
         <button
-          onClick={() => setOpenPaper(null)}
+          onClick={closeDetail}
           className="text-sm text-neutral-500 hover:text-neutral-900 transition mb-5"
         >
-          ← Back to papers
+          ← Back
         </button>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-            {openPaper.exam_board} {formatModule(openPaper.module)} · {openPaper.paper_year}
+            {heading}
           </h1>
 
           {(qpUrl || msUrl) && (
@@ -250,7 +283,7 @@ export default function TutorMaterialsPage() {
             setModule(null)
           }}
         />
-        {board && (
+        {board && !worksheetsMode && (
           <FilterRow
             label="Specification"
             options={specs}
@@ -262,7 +295,7 @@ export default function TutorMaterialsPage() {
             format={(v) => SPEC_LABEL[v] ?? v}
           />
         )}
-        {spec && (
+        {spec && !worksheetsMode && (
           <FilterRow
             label="Module"
             options={modules}
@@ -273,7 +306,11 @@ export default function TutorMaterialsPage() {
         )}
       </div>
 
-      {module && (
+      {worksheetsMode && (
+        <WorksheetBrowser worksheets={worksheets} onOpen={openWs} />
+      )}
+
+      {!worksheetsMode && module && (
         <div className="mt-8">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-sm font-medium">Papers</h2>

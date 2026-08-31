@@ -46,23 +46,25 @@ export type DashboardData = {
   totalAttempted: number;
 };
 
+function formatModule(m: string | null) {
+  if (!m) return "";
+  return m
+    .split("_")
+    .map((part: string) =>
+      /^[A-Z]{1,2}\d$/.test(part)
+        ? part
+        : part.charAt(0) + part.slice(1).toLowerCase(),
+    )
+    .join(" ");
+}
+
 function paperLabel(p: {
   exam_board: string | null;
   module: string | null;
   paper_year: string | null;
   spec_level: string | null;
 }) {
-  const mod = p.module
-    ? p.module
-        .split("_")
-        .map((part: string) =>
-          /^[A-Z]{1,2}\d$/.test(part)
-            ? part
-            : part.charAt(0) + part.slice(1).toLowerCase(),
-        )
-        .join(" ")
-    : "";
-  return `${p.exam_board ?? ""} ${mod} · ${p.paper_year ?? ""}`.trim();
+  return `${p.exam_board ?? ""} ${formatModule(p.module)} · ${p.paper_year ?? ""}`.trim();
 }
 
 function sortQuestions(nums: string[]) {
@@ -102,7 +104,7 @@ export async function getDashboardData(
 
   // questions and progress are whole-table reads, so they have to be paged —
   // see lib/fetch-all.ts.
-  const [profileRes, topicsRes, papersRes, questions, progress] =
+  const [profileRes, topicsRes, papersRes, worksheetsRes, questions, progress] =
     await Promise.all([
       supabase
         .from("users")
@@ -115,16 +117,20 @@ export async function getDashboardData(
         .select(
           "id, exam_board, spec_level, module, paper_year, qp_path, ms_path",
         ),
+      supabase
+        .from("worksheets")
+        .select("id, module, topic_name, qp_path, ms_path"),
       fetchAllRows<{
         id: string;
         topic_id: string | null;
         difficulty: number | null;
         pp_id: string | null;
+        worksheet_id: string | null;
         question_number: string | null;
       }>("getDashboardData questions", (from, to) =>
         supabase
           .from("questions")
-          .select("id, topic_id, difficulty, pp_id, question_number")
+          .select("id, topic_id, difficulty, pp_id, worksheet_id, question_number")
           .order("id")
           .range(from, to),
       ),
@@ -145,6 +151,9 @@ export async function getDashboardData(
   const filter = programmeFilter(examBoard);
 
   const paperById = new Map((papersRes.data ?? []).map((p) => [p.id, p]));
+  const worksheetById = new Map(
+    (worksheetsRes.data ?? []).map((w) => [w.id, w]),
+  );
 
   const validPaperIds = new Set(
     (papersRes.data ?? [])
@@ -152,8 +161,10 @@ export async function getDashboardData(
       .map((p) => p.id),
   );
 
+  // Programme papers for this student's board, plus every worksheet question
+  // (worksheets are uni-board, so they count for every student).
   const validQuestions = questions.filter(
-    (q) => q.pp_id && validPaperIds.has(q.pp_id),
+    (q) => (q.pp_id && validPaperIds.has(q.pp_id)) || q.worksheet_id,
   );
 
   const outcomeFor = new Map(
@@ -211,8 +222,9 @@ export async function getDashboardData(
       totalAttempted++;
     }
 
-    if (q.pp_id) {
-      const key = `${q.topic_id}:${d}:${q.pp_id}`;
+    const sourceId = q.pp_id ?? q.worksheet_id;
+    if (sourceId) {
+      const key = `${q.topic_id}:${d}:${sourceId}`;
       if (!paperAccum.has(key)) {
         paperAccum.set(key, { unattempted: new Set(), completed: new Map() });
       }
@@ -230,17 +242,22 @@ export async function getDashboardData(
     const parts = key.split(":");
     const topicId = parts[0];
     const diff = Number(parts[1]) as 1 | 2 | 3;
-    const paperId = parts[2];
+    const sourceId = parts[2];
 
     const t = topicMap.get(topicId);
     if (!t) continue;
 
-    const paper = paperById.get(paperId);
+    const paper = paperById.get(sourceId);
+    const worksheet = worksheetById.get(sourceId);
     t.difficulty[diff].papers.push({
-      id: paperId,
-      label: paper ? paperLabel(paper) : paperId,
-      qpPath: paper?.qp_path ?? null,
-      msPath: paper?.ms_path ?? null,
+      id: sourceId,
+      label: paper
+        ? paperLabel(paper)
+        : worksheet
+          ? `${formatModule(worksheet.module)} worksheet`
+          : sourceId,
+      qpPath: paper?.qp_path ?? worksheet?.qp_path ?? null,
+      msPath: paper?.ms_path ?? worksheet?.ms_path ?? null,
       unattempted: sortQuestions([...acc.unattempted]),
       completed: sortQuestions([...acc.completed.keys()]).map((num) => ({
         number: num,

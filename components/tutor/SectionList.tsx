@@ -1,6 +1,7 @@
 'use client'
 
 import type { StudentSection } from '@/app/tutor/students/[student_id]/actions'
+import { WORKSHEET_BOARD } from '@/lib/programme'
 import { formatModule } from '@/components/students/materials/types'
 import { SegmentBar } from '@/components/students/materials/SegmentBar'
 
@@ -28,7 +29,10 @@ export function SectionList({ sections }: { sections: StudentSection[] }) {
   const groups: { label: string; sections: StudentSection[] }[] = []
   for (const s of sections) {
     const spec = s.specLevel ? SPEC_LABEL[s.specLevel] ?? s.specLevel : ''
-    const label = `${s.examBoard ?? '?'} · ${spec}`
+    const label =
+      s.examBoard === WORKSHEET_BOARD
+        ? 'Worksheets'
+        : `${s.examBoard ?? '?'} · ${spec}`
     const last = groups[groups.length - 1]
     if (last && last.label === label) last.sections.push(s)
     else groups.push({ label, sections: [s] })
