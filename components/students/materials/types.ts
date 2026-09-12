@@ -22,6 +22,11 @@ export const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/
 
 export function pdfUrl(path: string | null): string | null {
   if (!path) return null;
+  // Some sources (worksheets) store an already-absolute URL, while past papers
+  // store a path relative to the storage bucket. Only the relative ones need
+  // the bucket prefix and per-segment encoding — prefixing an absolute URL
+  // would double it up (…/question-assets/https%3A//…).
+  if (/^https?:\/\//i.test(path)) return path;
   return `${STORAGE_BASE}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
