@@ -46,6 +46,49 @@ export type DashboardData = {
   totalAttempted: number;
 };
 
+export type TopicRank = {
+  topicId: string;
+  topic: string;
+  section: string;
+  rank: number;
+};
+
+/**
+ * The logged-in student's tutor-assigned strength ranks (1-5) per topic.
+ * Reads through the `student_topic_ranks` view, which exposes only the rank -
+ * never the tutor's private notes. Topics with no rank set are omitted.
+ */
+export async function getMyTopicRanks(): Promise<TopicRank[]> {
+  const supabase = await createClient();
+
+  const [ranksRes, topicsRes] = await Promise.all([
+    supabase.from("student_topic_ranks").select("topic_id, rank"),
+    supabase.from("topics").select("id, topic, section_course"),
+  ]);
+
+  if (ranksRes.error) {
+    console.error("getMyTopicRanks error:", ranksRes.error);
+    return [];
+  }
+  if (topicsRes.error) console.error("getMyTopicRanks topics:", topicsRes.error);
+
+  const topicById = new Map(
+    (topicsRes.data ?? []).map((t) => [t.id, t]),
+  );
+
+  return (ranksRes.data ?? [])
+    .filter((r) => r.rank != null)
+    .map((r) => {
+      const t = topicById.get(r.topic_id);
+      return {
+        topicId: r.topic_id,
+        topic: t?.topic ?? "Unknown topic",
+        section: t?.section_course ?? "Other",
+        rank: r.rank as number,
+      };
+    });
+}
+
 function formatModule(m: string | null) {
   if (!m) return "";
   return m

@@ -1,8 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getDashboardData, type DashboardData } from './actions'
+import {
+  getDashboardData,
+  getMyTopicRanks,
+  type DashboardData,
+  type TopicRank,
+} from './actions'
 import { OverallRing, TopicCoverageGrid } from '@/components/students/dashboard/TopicCoverage'
+import { TutorRankBoard } from '@/components/students/dashboard/TutorRankBoard'
 
 function pct(n: number, total: number) {
   return total > 0 ? Math.round((n / total) * 100) : 0
@@ -10,11 +16,13 @@ function pct(n: number, total: number) {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [ranks, setRanks] = useState<TopicRank[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getDashboardData().then((d) => {
+    Promise.all([getDashboardData(), getMyTopicRanks()]).then(([d, r]) => {
       setData(d)
+      setRanks(r)
       setLoading(false)
     })
   }, [])
@@ -62,6 +70,8 @@ export default function DashboardPage() {
       )}
 
       <TopicCoverageGrid topics={data.topics} />
+
+      <TutorRankBoard ranks={ranks} />
     </div>
   )
 }

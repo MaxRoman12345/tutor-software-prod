@@ -3,6 +3,7 @@ import { getDashboardData } from '@/app/student/dashboard/actions'
 import { getStudentPapers } from './actions'
 import { getLessons, getLessonOptions } from './lesson-actions'
 import { getHomework } from './homework-actions'
+import { getTopicAssessments } from './assessment-actions'
 import { StudentTabs } from '@/components/tutor/StudentTabs'
 import { StudentPaperList } from '@/components/tutor/StudentPaperList'
 import { SectionList } from '@/components/tutor/SectionList'
@@ -21,13 +22,14 @@ export default async function TutorStudentDetailPage({
 }) {
   const { student_id: studentId } = await params
 
-  const [dashboard, { papers, sections }, lessons, homework, options] =
+  const [dashboard, { papers, sections }, lessons, homework, options, assessments] =
     await Promise.all([
       getDashboardData(studentId),
       getStudentPapers(studentId),
       getLessons(studentId),
       getHomework(studentId),
       getLessonOptions(),
+      getTopicAssessments(studentId),
     ])
 
   const overallPct = pct(dashboard.totalAttempted, dashboard.totalQuestions)
@@ -86,7 +88,14 @@ export default async function TutorStudentDetailPage({
         }
         sections={<SectionList sections={sections} />}
         papers={<StudentPaperList papers={papers} />}
-        topics={<TopicList topics={dashboard.topics} />}
+        topics={
+          <TopicList
+            topics={dashboard.topics}
+            assessments={assessments}
+            lessons={lessons}
+            studentId={studentId}
+          />
+        }
       />
     </div>
   )

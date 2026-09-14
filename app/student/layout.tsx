@@ -32,7 +32,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             Systemised Maths
           </span>
 
-          <button
+            <button
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Toggle navigation menu"
             className="flex sm:hidden h-8 w-8 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 transition shrink-0"
